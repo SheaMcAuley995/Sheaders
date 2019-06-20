@@ -3,10 +3,6 @@
 	Properties
 	{
 		_MainTex ("Texture", 2D) = "white" {}
-		_Color("Color", Color) = (1,1,1,1)
-		_MainTex2("Albedo (RGB)", 2D) = "white" {}
-		_Glossiness("Smoothness", Range(0,1)) = 0.5
-		_Metallic("Metallic", Range(0,1)) = 0.0
 	}
 	SubShader
 	{
@@ -36,6 +32,11 @@
 			uniform fixed4 _mainColor;
 			uniform float2 _ShadowDistance;
 			uniform float _ShadowIntensity, _ShadowPenumbra;
+
+			uniform int _ReflectionCount;
+			uniform float _ReflectionIntensity;
+			uniform float _EnvReflIntenisty;
+			uniform samplerCUBE _ReflectionCube;
 
 			uniform float4 _sphere;
 			uniform float _sphereSmooth;
@@ -182,49 +183,36 @@
 				return result;
 			}
 			
-			fixed4 raymarching(float3 ro, float3 rd, float depth)
+			fixed4 raymarching(float3 ro, float3 rd, float depth, float maxDistance, int maxIterations, inout float3 p)
 			{
-				fixed4 result = fixed4(1, 1, 1, 1);
-				const int max_iteration = _MaxIterations;
+				bool hit;
+
 				float t = 0; //distance travelled along the ray direction
 
-				for (int i = 0; i < max_iteration; i++)
+				for (int i = 0; i < maxIterations; i++)
 				{
-					if (t > _maxDistance || t >= depth)
+					if (t > maxDistance || t >= depth)
 					{
 						//env
-						result = fixed4(rd, 0);
+						hit = false;
 						break;
 					}
 
-					float3 p = ro + rd * t;
+					p = ro + rd * t;
 					//check for hit in distfield
 					float d = distanceField(p);
 
 					if (d < _Accuracy)
 					{
-						//shading!
-						float3 n = getNormal(p);
-						float3 s = Shading(p, n);
-
-						result = fixed4(s, 1);
+						hit = true;
 						break;
 					}
 					t += d;
 				}
 
-				return result;
+				return hit;
 			}
 
-			void surf(Input IN, inout SurfaceOutputStandard o) {
-				// Albedo comes from a texture tinted by color
-				fixed4 c = tex2D(_MainTex2, IN.uv_MainTex) * _Color;
-				o.Albedo = c.rgb;
-				// Metallic and smoothness come from slider variables
-				o.Metallic = _Metallic;
-				o.Smoothness = _Glossiness;
-				o.Alpha = c.a;
-			}
 
 			fixed4 frag (v2f i) : SV_Target
 			{
@@ -233,7 +221,33 @@
 				fixed3 col = tex2D(_MainTex, i.uv);
 				float3 rayDirection = normalize(i.ray.xyz);
 				float3 rayOrigin = _WorldSpaceCameraPos;
-				fixed4 result = raymarching(rayOrigin, rayDirection, depth);
+				fixed4 result;
+				float3 hitPosition;
+
+				bool hit = raymarching(rayOrigin, rayDirection, depth, _maxDistance, _MaxIterations, hitPosition);
+				if (hit)
+				{				
+					//shading!
+					float3 n = getNormal(hitPosition);
+					float3 s = Shading(hitPosition, n);
+
+					result = fixed4(s, 1);
+					result += fixed4(texCUBE(_ReflectionCube, n).rgb * _EnvReflIntenisty *_ReflectionIntensity, 0);
+					
+					if (_ReflectionCount > 0)
+					{
+						rayDirection = normalize(reflect(rayDirection, n));
+						rayOrigin = hitPosition + (rayDirection * 0.01);
+
+					}
+
+				}
+				else //miss
+				{
+					result = fixed4(0, 0, 0, 0);
+				}
+
+
 				return fixed4(col * (1.0 - result.w) + result.xyz * result.w,1.0);
 			}
 			ENDCG

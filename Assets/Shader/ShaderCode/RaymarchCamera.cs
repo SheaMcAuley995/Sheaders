@@ -65,6 +65,18 @@ public class RaymarchCamera : SceneViewFilter
     [Range(0,1)]
     public float _AoInstensity;
 
+    [Header("Reflection")]
+    [Range(0, 2)]
+    public int _ReflectionCount;
+    [Range(0, 1)]
+    public float _ReflectionIntensity;
+    [Range(0, 1)]
+    public float _EnvReflIntenisty;
+
+    public Cubemap _ReflectionCube;
+
+
+
     [Header("Signed Distance Field")]
     public Color _mainColor;
     public Vector4 _sphere;
@@ -103,6 +115,10 @@ public class RaymarchCamera : SceneViewFilter
         _raymarchMaterial.SetFloat("_AoInstensity", _AoInstensity);
         _raymarchMaterial.SetInt("_AoIterations", _AoIterations);
 
+        _raymarchMaterial.SetInt("_ReflectionCount", _ReflectionCount);
+        _raymarchMaterial.SetFloat("_ReflectionIntensity", _ReflectionIntensity);
+        _raymarchMaterial.SetFloat("_EnvReflIntenisty", _EnvReflIntenisty);
+        _raymarchMaterial.SetTexture("_ReflectionCube", _ReflectionCube);
 
         RenderTexture.active = destination;
         _raymarchMaterial.SetTexture("_MainTex", source);
